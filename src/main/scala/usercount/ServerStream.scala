@@ -1,7 +1,11 @@
 package usercount
 
+import java.util.concurrent.TimeUnit
+
 import cats.effect._
 import cats.implicits._
+import cron4s.Cron
+import eu.timepit.fs2cron.awakeEveryCron
 import fs2.Stream
 import fs2.concurrent.Queue
 import org.http4s.HttpRoutes
@@ -47,17 +51,25 @@ object ServerStream {
     }
   }
 
-  def stream[F[_]: ConcurrentEffect: Timer](host: String, port: Int): fs2.Stream[F, Unit] =
+  def stream[F[_]: ConcurrentEffect: Timer: ContextShift](host: String, port: Int): fs2.Stream[F, Unit] = {
+    val everyHourAtMinute10 = Cron.unsafeParse("* 10 * ? * *")
+
     for {
       inMemoryStatsStore <- Stream.eval(InMemoryStatsStore[F]())
+      persistentStore <- Stream.eval(SummaryH2DB[F]("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", "sa", ""))
+      compoundStore <- Stream.eval(CompoundSummaryStore(inMemoryStatsStore, persistentStore))
       queue <- Stream.eval(Queue.bounded[F, Event](1000))
       _ <- Stream(
         BlazeServerBuilder[F]
           .bindHttp(port, host)
-          .withHttpApp(Router("/" -> new Routes[F](queue.enqueue1, inMemoryStatsStore.hourSummary).routes).orNotFound)
+          .withHttpApp(Router("/" -> new Routes[F](queue.enqueue1, compoundStore.hourSummary).routes).orNotFound)
           .serve
           .drain,
-        queue.dequeue.through(inMemoryStatsStore.eventSink).drain
-      ).parJoin(2)
+        queue.dequeue.through(compoundStore.eventSink).drain,
+        (awakeEveryCron[F](everyHourAtMinute10) >> Stream.eval(Clock[F].realTime(TimeUnit.HOURS))).evalMap { hour =>
+          compoundStore.saveSummariesToDb(hour - 1)
+        }.drain
+      ).parJoin(3)
     } yield ()
+  }
 }

@@ -13,4 +13,8 @@ package object usercount {
   case class Event(hour: Hour, userId: String, eventType: EventType)
 
   case class Summary(impressions: Int, clicks: Int, uniqueUsers: Int)
+
+  object Summary {
+    val empty = Summary(0, 0, 0)
+  }
 }

@@ -46,5 +46,39 @@ class InMemoryStatsStoreSpec extends Specification {
         summary <- statsStore.hourSummary(10)
       } yield summary).unsafeRunSync() must_=== Summary(0, 2, 2)
     }
+
+    "2 click events for different hours have been added" >> {
+      "summary for hour" >> {
+        (for {
+          statsStore <- InMemoryStatsStore[IO]()
+          events = Seq(Event(10, "user_1", Click), Event(12, "user_2", Impression))
+          _ <- Stream.emits(events).through(statsStore.eventSink).compile.drain
+          summary <- statsStore.hourSummary(10)
+        } yield summary).unsafeRunSync() must_=== Summary(0, 1, 1)
+      }
+
+      "summaries for all hours" >> {
+        (for {
+          statsStore <- InMemoryStatsStore[IO]()
+          events = Seq(Event(10, "user_1", Click), Event(12, "user_2", Impression))
+          _ <- Stream.emits(events).through(statsStore.eventSink).compile.drain
+          summaries <- statsStore.hourSummaries.compile.toList
+        } yield summaries).unsafeRunSync() must contain(exactly((10L, Summary(0, 1, 1)), (12L, Summary(1, 0, 1))))
+      }
+    }
+
+    "remove stats" >> {
+      (for {
+        statsStore <- InMemoryStatsStore[IO]()
+        events = Seq(
+          Event(10, "user_1", Click),
+          Event(11, "user_2", Impression),
+          Event(12, "user_1", Click),
+          Event(13, "user_2", Impression))
+        _ <- Stream.emits(events).through(statsStore.eventSink).compile.drain
+        _ <- statsStore.removeForHourAndBefore(11)
+        summaries <- statsStore.hourSummaries.compile.toList
+      } yield summaries).unsafeRunSync() must contain(exactly((12L, Summary(0, 1, 1)), (13L, Summary(1, 0, 1))))
+    }
   }
 }

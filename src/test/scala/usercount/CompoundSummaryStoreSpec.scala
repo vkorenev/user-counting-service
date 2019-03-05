@@ -105,4 +105,39 @@ class CompoundSummaryStoreSpec extends Specification with H2DBSpec {
       lastSavedHour must beSome(10L)
     }
   }
+
+  "persisted and reopened" >> {
+    val dbConfig = DbConfig(testDbUrl, "sa", "")
+    val (summaryFor10, persistedSummariesFor10, persistedSummariesFor11, lastSavedHour) = (for {
+      inMemoryStatsStore1 <- InMemoryStatsStore[IO]()
+      persistentStore1 <- SummaryH2DB[IO](dbConfig)
+      summaryStore1 <- CompoundSummaryStore(inMemoryStatsStore1, persistentStore1)
+      events = Seq(Event(10, "user_1", Impression), Event(11, "user_1", Click))
+      _ <- Stream.emits(events).through(summaryStore1.eventSink).compile.drain
+      _ <- summaryStore1.saveSummariesToDb(10)
+      inMemoryStatsStore2 <- InMemoryStatsStore[IO]()
+      persistentStore2 <- SummaryH2DB[IO](dbConfig)
+      summaryStore2 <- CompoundSummaryStore(inMemoryStatsStore2, persistentStore2)
+      summaryFor10 <- summaryStore2.hourSummary(10)
+      persistedSummariesFor10 <- persistentStore2.getSummary(10)
+      persistedSummariesFor11 <- persistentStore2.getSummary(11)
+      lastSavedHour <- persistentStore2.getLastHour
+    } yield (summaryFor10, persistedSummariesFor10, persistedSummariesFor11, lastSavedHour)).unsafeRunSync()
+
+    "compound result 1" >> {
+      summaryFor10 must_=== Summary(1, 0, 1)
+    }
+
+    "persisted result 1" >> {
+      persistedSummariesFor10 must_=== Summary(1, 0, 1)
+    }
+
+    "presisted result 2" >> {
+      persistedSummariesFor11 must_=== Summary.empty
+    }
+
+    "last saved hour" >> {
+      lastSavedHour must beSome(10L)
+    }
+  }
 }

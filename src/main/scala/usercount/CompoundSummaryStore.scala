@@ -1,13 +1,13 @@
 package usercount
 
 import cats.effect._
-import cats.implicits._
 import cats.effect.concurrent.Ref
+import cats.implicits._
 import fs2._
 
 import scala.language.higherKinds
 
-class CompoundSummaryStore[F[_]: Sync] private(
+class CompoundSummaryStore[F[_]: Sync] private (
     inMemoryStore: InMemoryStatsStore[F],
     persistentStore: SummaryH2DB[F],
     lastSavedHourRef: Ref[F, Option[Hour]]) {
@@ -39,8 +39,11 @@ class CompoundSummaryStore[F[_]: Sync] private(
 }
 
 object CompoundSummaryStore {
-  def apply[F[_]: Sync](inMemoryStore: InMemoryStatsStore[F], persistentStore: SummaryH2DB[F]): F[CompoundSummaryStore[F]] =
+  def apply[F[_]: Sync](
+      inMemoryStore: InMemoryStatsStore[F],
+      persistentStore: SummaryH2DB[F]): F[CompoundSummaryStore[F]] =
     for {
-      lastSavedHourRef <- Ref.of[F, Option[Hour]](None)
+      lastSavedHour <- persistentStore.getLastHour
+      lastSavedHourRef <- Ref.of[F, Option[Hour]](lastSavedHour)
     } yield new CompoundSummaryStore(inMemoryStore, persistentStore, lastSavedHourRef)
 }

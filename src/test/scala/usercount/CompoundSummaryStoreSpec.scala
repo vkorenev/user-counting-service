@@ -2,6 +2,7 @@ package usercount
 import cats.effect._
 import fs2._
 import org.specs2.mutable.Specification
+import usercount.SummaryH2DB.{Config => DbConfig}
 
 import scala.concurrent.ExecutionContext
 
@@ -17,7 +18,7 @@ class CompoundSummaryStoreSpec extends Specification with H2DBSpec {
       persistedSummariesFor11,
       lastSavedHour) = (for {
       inMemoryStatsStore <- InMemoryStatsStore[IO]()
-      persistentStore <- SummaryH2DB[IO](testDbUrl, "sa", "")
+      persistentStore <- SummaryH2DB[IO](DbConfig(testDbUrl, "sa", ""))
       summaryStore <- CompoundSummaryStore(inMemoryStatsStore, persistentStore)
       events = Seq(Event(10, "user_1", Impression), Event(11, "user_1", Click))
       _ <- Stream.emits(events).through(summaryStore.eventSink).compile.drain
@@ -65,7 +66,7 @@ class CompoundSummaryStoreSpec extends Specification with H2DBSpec {
       persistedSummariesFor11,
       lastSavedHour) = (for {
       inMemoryStatsStore <- InMemoryStatsStore[IO]()
-      persistentStore <- SummaryH2DB[IO](testDbUrl, "sa", "")
+      persistentStore <- SummaryH2DB[IO](DbConfig(testDbUrl, "sa", ""))
       summaryStore <- CompoundSummaryStore(inMemoryStatsStore, persistentStore)
       events = Seq(Event(10, "user_1", Impression), Event(11, "user_1", Click))
       _ <- Stream.emits(events).through(summaryStore.eventSink).compile.drain

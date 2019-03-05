@@ -42,15 +42,17 @@ object SummaryH2DB {
               uniqueUsers integer)""".update.run.transact(xa)
     }
 
-  def apply[F[_]: Sync: Async: ContextShift](url: String, userName: String, password: String): F[SummaryH2DB[F]] =
+  def apply[F[_]: Sync: Async: ContextShift](cfg: Config): F[SummaryH2DB[F]] =
     for {
       xa <- Sync[F].delay {
         for {
           ce <- ExecutionContexts.fixedThreadPool[F](8) // connect EC
           te <- ExecutionContexts.cachedThreadPool[F] // transaction EC
-          xa <- H2Transactor.newH2Transactor[F](url, userName, password, ce, te)
+          xa <- H2Transactor.newH2Transactor[F](cfg.url, cfg.userName, cfg.password, ce, te)
         } yield xa
       }
       _ <- createSummaryTable(xa)
     } yield new SummaryH2DB[F](xa)
+
+  case class Config(url: String, userName: String, password: String)
 }

@@ -13,6 +13,7 @@ import org.http4s.dsl.Http4sDsl
 import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.syntax.kleisli._
+import usercount.SummaryH2DB.{Config => DbConfig}
 
 import scala.language.higherKinds
 
@@ -51,12 +52,15 @@ object ServerStream {
     }
   }
 
-  def stream[F[_]: ConcurrentEffect: Timer: ContextShift](host: String, port: Int): fs2.Stream[F, Unit] = {
+  def stream[F[_]: ConcurrentEffect: Timer: ContextShift](
+      host: String,
+      port: Int,
+      h2dbConfig: DbConfig): fs2.Stream[F, Unit] = {
     val everyHourAtMinute10 = Cron.unsafeParse("* 10 * ? * *")
 
     for {
       inMemoryStatsStore <- Stream.eval(InMemoryStatsStore[F]())
-      persistentStore <- Stream.eval(SummaryH2DB[F]("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", "sa", ""))
+      persistentStore <- Stream.eval(SummaryH2DB[F](h2dbConfig))
       compoundStore <- Stream.eval(CompoundSummaryStore(inMemoryStatsStore, persistentStore))
       queue <- Stream.eval(Queue.bounded[F, Event](1000))
       _ <- Stream(

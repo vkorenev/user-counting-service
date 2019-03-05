@@ -1,0 +1,1 @@
+Simple web service written in Scala with [Typelevel](https://typelevel.org/) stack: [cats](https://typelevel.org/cats/), [cats-effect](https://typelevel.org/cats-effect/), [fs2](https://fs2.io/), [http4s](https://http4s.org/), and [doobie](https://tpolecat.github.io/doobie/).

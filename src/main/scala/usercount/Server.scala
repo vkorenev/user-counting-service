@@ -12,7 +12,6 @@ object Server extends IOApp {
   def run(args: List[String]): IO[ExitCode] =
     for {
       cfg <- loadConfigF[IO, Config](Paths.get("server.conf"))
-//    val dbConfig = DbConfig("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1", "sa", "")
       server <- ServerStream.stream[IO](cfg.host, cfg.port, cfg.db).compile.drain.as(ExitCode.Success)
     } yield server
 
